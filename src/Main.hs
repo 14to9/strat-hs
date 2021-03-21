@@ -4,16 +4,46 @@ module Main where
 
 import System.Random
 
+-- Extra tight integer synonyms
+type Yards      = Int
+type CardRoll   = Int
+type LookupRoll = Int
+type TestRoll   = Int
+type TestRange  = [Int]
+
 --
 -- Yardage results are sometimes specified, sometimes randomized
 --
 data Yardage =
-    Gain Int
-  | Loss Int
+    Gain Yards
+  | Loss Yards
   | ShortGain
   | LongGain
+  | NoGain
   deriving (Show)
 
+--
+-- CardConditional wraps the many if-A-then-B results on cards
+--
+data CardConditional =
+    InterceptionChance TestRange Yardage
+  | GainChance TestRange Yardage Yardage
+  | PositionTest Position Yardage Yardage
+  | CompletionTest Position Yardage
+  deriving Show
+
+--
+-- Positions in CardResult conditions
+--
+data Position =
+    DefensiveOnsideEnd
+  | LinebackerInZone
+  | OffensiveOnsideGuard
+  | OffensiveOnsideEnd
+  | OffensiveOnsideTackle
+  | BlockingBack
+  | Defender
+  deriving Show
 --
 -- Every value on stat cards (offense and defense) is a CardResult
 --
@@ -22,11 +52,13 @@ data CardResult =
   | Completion Yardage
   | MustRun
   | ReceiverRoll
-  | InterceptionChance [Int] Yardage
+  | Test CardConditional
   deriving Show
 
+type CardColumn = Int -> CardResult
+
 --
--- Play result is
+-- Play elements
 --
 data PlayResult =
     IncompletePass
@@ -35,23 +67,31 @@ data PlayResult =
   | PasserScrambled Yardage
   deriving Show
 
+data PassType = FlatPass
+
+data PlayCall =
+  Pass PassType PasserCard ReceiverCard
+
 --
 -- We will generate the set of die rolls for every flow path
 -- and pass this master set on every play.
 --
-data DieRolls = DieRolls { playRoll         :: Int
+data DieRolls = DieRolls { cardRoll         :: CardRoll
+                         , playRoll         :: Int
                          , interceptionRoll :: Int
                          , receiverRoll     :: Int
+                         , gainRoll         :: Int
                          } deriving Show
 
 --
 -- Functions that apply tables to rolls
 --
-attemptPass :: DieRolls -> (Int -> CardResult) -> PlayResult
-attemptPass rolls table =
-  passResult outcome rolls
-  where
-    outcome = table $ playRoll rolls
+runPlay :: PlayCall -> DieRolls -> PlayResult
+runPlay (Pass t qb wr) rolls =
+  passResult (qbPassColumn t qb $ playRoll rolls) rolls
+
+qbPassColumn :: PassType -> PasserCard -> CardColumn
+qbPassColumn FlatPass qb = qbFlatPassCorrect qb
 
 receiverResult :: CardResult -> PlayResult
 receiverResult (Completion y) = CompletedPass y
@@ -61,32 +101,40 @@ passResult :: CardResult -> DieRolls -> PlayResult
 passResult (Completion y) _ = CompletedPass y
 passResult Incompletion _   = IncompletePass
 passResult MustRun r        = PasserScrambled (Gain 12)
-passResult ReceiverRoll r   = receiverResult $ receiverFlatRight (receiverRoll r)
-passResult (InterceptionChance range y) r
+passResult ReceiverRoll r   = receiverResult $ sampleRecvTable (receiverRoll r)
+passResult (Test (InterceptionChance range y)) r
   | (interceptionRoll r) `elem` range = Interception y
   | otherwise                         = IncompletePass
+passResult _ _ = IncompletePass
+
+--
+-- Card types
+--
+data ReceiverCard = ReceiverCard { wrFlatPassCorrect :: CardColumn}
+
+data PasserCard   = PasserCard   { qbFlatPassCorrect :: CardColumn}
 
 --
 -- Simulating card data (tables)
 --
-flatPassRight :: Int -> CardResult
-flatPassRight 2  = Completion (Loss 1)
-flatPassRight 3  = Completion ShortGain
-flatPassRight 5  = Completion (Gain 5)
-flatPassRight 8  = ReceiverRoll
-flatPassRight 9  = ReceiverRoll
-flatPassRight 10 = Completion (Gain 4)
-flatPassRight 11 = InterceptionChance [2,3] (Gain 2)
-flatPassRight _  = Incompletion
+samplePassTable :: CardColumn
+samplePassTable 2  = Completion (Loss 1)
+samplePassTable 3  = Completion ShortGain
+samplePassTable 5  = Completion (Gain 5)
+samplePassTable 8  = ReceiverRoll
+samplePassTable 9  = ReceiverRoll
+samplePassTable 10 = Completion (Gain 4)
+samplePassTable 11 = Test (InterceptionChance [2,3] (Gain 2))
+samplePassTable _  = Incompletion
 
-receiverFlatRight :: Int -> CardResult
-receiverFlatRight 3  = Completion (Gain 9)
-receiverFlatRight 7  = Completion (Gain 6)
-receiverFlatRight 8  = Completion (Gain 8)
-receiverFlatRight 9  = Completion (Gain 5)
-receiverFlatRight 10 = Completion (Gain 4)
-receiverFlatRight 11 = Completion ShortGain
-receiverFlatRight _  = Incompletion
+sampleRecvTable :: CardColumn
+sampleRecvTable 3  = Completion (Gain 9)
+sampleRecvTable 7  = Completion (Gain 6)
+sampleRecvTable 8  = Completion (Gain 8)
+sampleRecvTable 9  = Completion (Gain 5)
+sampleRecvTable 10 = Completion (Gain 4)
+sampleRecvTable 11 = Completion ShortGain
+sampleRecvTable _  = Incompletion
 
 rollDie :: IO Int
 rollDie = getStdRandom (randomR (1,6))
@@ -96,7 +144,9 @@ roll2d6 = (+) <$> rollDie <*> rollDie
 
 rollDice :: IO DieRolls
 rollDice =
-  DieRolls <$> roll2d6
+  DieRolls <$> rollDie
+           <*> roll2d6
+           <*> roll2d6
            <*> roll2d6
            <*> roll2d6
 
@@ -105,6 +155,10 @@ rollDice =
 --
 main :: IO ()
 main = do
+  let qb = PasserCard samplePassTable
+      wr = ReceiverCard sampleRecvTable
+      play = Pass FlatPass qb wr
+
   randoms <- rollDice
   putStrLn $ show randoms
-  putStrLn $ show $ attemptPass randoms flatPassRight
+  putStrLn $ show $ runPlay play randoms
