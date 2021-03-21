@@ -16,4 +16,5 @@ Shell into the haskell container
 > docker-compose run dev bash
 
 Inside the haskell container, run:
+> root@strat-hs-dev strat-hs $ stack build
 > root@strat-hs-dev strat-hs $ stack run
