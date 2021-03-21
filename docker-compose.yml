@@ -1,0 +1,22 @@
+version: '3.6'
+
+services:
+  dev:
+    build: ./containers/strat-hs-dev
+    ports:
+      - 4000:4000
+    volumes:
+      # Tooled for OSX exclusively here
+      - strat-hs-file-sync:/usr/src/strat-hs:nocopy
+    working_dir: /usr/src/strat-hs
+    environment:
+      PORT: 4000
+
+networks:
+  default:
+    external:
+      name: skillsmatter-network
+
+volumes:
+  strat-hs-file-sync:
+    external: true
