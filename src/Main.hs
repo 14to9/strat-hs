@@ -92,10 +92,7 @@ rollDie :: IO Int
 rollDie = getStdRandom (randomR (1,6))
 
 roll2d6 :: IO Int
-roll2d6 = do
-  a <- rollDie
-  b <- rollDie
-  return (a + b)
+roll2d6 = (+) <$> rollDie <*> rollDie
 
 rollDice :: IO DieRolls
 rollDice =
