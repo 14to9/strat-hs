@@ -121,11 +121,15 @@ data Play = Play { pCall :: PlayCall
 -- We will generate the set of die rolls for every flow path
 -- and pass this master set on every play.
 --
-data DieRolls = DieRolls { cardRoll         :: CardRoll
+data TeamRoll = Offense | Defense
+  deriving (Show, Eq)
+
+data DieRolls = DieRolls { positionRoll     :: CardRoll
                          , playRoll         :: LookupRoll
                          , receiverRoll     :: LookupRoll
                          , interceptionRoll :: TestRoll
                          , gainRoll         :: TestRoll
+                         , recoveryRoll     :: TeamRoll
                          } deriving Show
 
 --
@@ -134,8 +138,8 @@ data DieRolls = DieRolls { cardRoll         :: CardRoll
 
 runPlay :: DefenseCard -> Play -> DieRolls -> PlayResult
 runPlay dc p r
-  | ((cardRoll r) < 4) = cardResult (startColumnOffense p $ playRoll r) p r
-  | otherwise          = cardResult (startColumnDefense dc p $ playRoll r) p r
+  | useOffense r = cardResult (startColumnOffense p $ playRoll r) p r
+  | otherwise    = cardResult (startColumnDefense dc p $ playRoll r) p r
 
 startColumnOffense :: Play -> CardColumn
 startColumnOffense (Play (Pass Flat _ qb _) StopPass _) = qbFlatPassCorrect qb
@@ -195,8 +199,8 @@ testDefender :: Play
              -> PlayResult
              -> PlayResult
 testDefender play r hit miss
-  | maximum (zoneDefenders play) >= (cardRoll r) = hit
-  | otherwise                                    = miss
+  | maximum (zoneDefenders play) >= (positionRoll r) = hit
+  | otherwise                                        = miss
 
 --
 -- Simulating card data (tables)
@@ -261,6 +265,7 @@ rollDice =
            <*> roll2d6
            <*> roll2d6
            <*> roll2d6
+           <*> pure Offense
 
 coinFlip :: a -> a -> IO a
 coinFlip x y = pick <$> flip
@@ -270,6 +275,14 @@ coinFlip x y = pick <$> flip
       | otherwise = y
     flip :: IO Int
     flip = getStdRandom(randomR(1,2))
+
+whichTeam :: CardRoll -> TeamRoll
+whichTeam r
+  | (r < 4)   = Offense
+  | otherwise = Defense
+
+useOffense :: DieRolls -> Bool
+useOffense r = whichTeam (positionRoll r) == Offense
 
 --
 -- main
