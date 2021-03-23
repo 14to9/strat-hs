@@ -1,7 +1,7 @@
 module Main where
 
 import Dice (coinFlip, rollDice)
-import Engine (runPlay, zoneCount)
+import Engine (snap, runPlay, zoneCount, guessResult)
 import SampleTeam
 import Types
 
@@ -11,17 +11,20 @@ import Types
 main :: IO ()
 main = do
   -- This sets up a random play call and should probably instead live in a test
-  side    <- coinFlip OffensiveRight OffensiveLeft
-  dCall   <- coinFlip StopPass StopRun
+  side  <- coinFlip OffensiveRight OffensiveLeft
+  focus <- coinFlip StopPass StopRun
 
-  let call  = Pass Flat side samplePasserCard sampleReceiverCard
-      play  = Play call dCall sampleAlignment
+  let oCall = Pass Flat side samplePasserCard sampleReceiverCard
+      dCall = DefensiveCall focus sampleDefenseCard sampleAlignment
+      guess = guessResult oCall dCall
+      play  = Play oCall dCall guess
 
   -- Roll dice and evaluate
   randoms <- rollDice
-  let result = runPlay sampleTeamDefenseCard play randoms
+  let atSnap = snap play
+      result = runPlay atSnap randoms
 
   putStrLn $ show randoms
   putStrLn $ "  Pass to " <> (show side)
-  putStrLn $ "  Defense calls " <> (show dCall) <> ", " <> (show $ zoneCount play) <> " defenders in zone."
+  putStrLn $ "  " <> (show $ dcFocus dCall) <> ", " <> (show $ zoneCount play) <> " defenders in zone."
   putStrLn $ "  " <> (show $ result)

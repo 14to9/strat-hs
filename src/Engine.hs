@@ -6,17 +6,46 @@ import Types
 -- Functions that apply tables to rolls
 --
 
-runPlay :: DefenseCard -> Play -> DieRolls -> PlayResult
-runPlay dc p r
-  | useOffense r = cardResult (startColumnOffense p $ playRoll r) p r
-  | otherwise    = cardResult (startColumnDefense dc p $ playRoll r) p r
+runPlay :: Play -> DieRolls -> PlayResult
+runPlay p r = cardResult (startColumn p $ playRoll r) p r
+  where
+    startColumn
+      | useOffense r = startColumnOffense
+      | otherwise    = startColumnDefense
+--
+-- snap dispatches whatever changes that are applied by rule to the
+-- formation (OffRating changes) alignments (safety movements)
+-- and other factors based on various call elements
+-- (including changing the guess result 💀)
+--
+snap :: Play -> Play
+-- Just pass everything through as-is right now
+snap p = p
+
+guessResult :: OffensiveCall -> DefensiveCall -> GuessResult
+guessResult (Pass _ _ _ _) (DefensiveCall StopPass _ _) = GuessedRight
+guessResult _ _                                         = GuessedWrong
+
+playQb :: Play -> PasserCard
+playQb =  ocQb . oCall
+
+playReceiver :: Play -> ReceiverCard
+playReceiver = ocWr . oCall
+
+playZone :: Play -> Zone
+playZone = ocZone . oCall
+
+playSide :: Play -> Side
+playSide = ocSide . oCall
+
+playAlignment :: Play -> DefensiveAlignment
+playAlignment = dcAlignment . dCall
 
 startColumnOffense :: Play -> CardColumn
-startColumnOffense (Play (Pass Flat _ qb _) StopPass _) = qbFlatPassCorrect qb
-startColumnOffense (Play (Pass Flat _ qb _) StopRun _)  = qbFlatPassCorrect qb
+startColumnOffense = qbFlatPassCorrect . playQb
 
 zoneDefenders :: Play -> ZoneDefenders
-zoneDefenders (Play (Pass zone side _ _) _ align)  = defendersInAlignment zone side align
+zoneDefenders p = defendersInAlignment (playZone p) (playSide p) (playAlignment p)
 
 zoneCount :: Play -> ZoneCount
 zoneCount = length . zoneDefenders
@@ -25,15 +54,14 @@ defendersInAlignment :: Zone -> Side -> DefensiveAlignment -> ZoneDefenders
 defendersInAlignment Flat OffensiveLeft  = flatRightZone
 defendersInAlignment Flat OffensiveRight = flatLeftZone
 
-startColumnDefense :: DefenseCard -> Play -> CardColumn
-startColumnDefense def play
-  | (zoneCount play) == 0 = defFlatZero def
-  | (zoneCount play) == 1 = defFlatOne def
+startColumnDefense :: Play -> CardColumn
+startColumnDefense play
+  | (zoneCount play) == 0 = defFlatZero . dcCard .dCall $ play
+  | (zoneCount play) == 1 = defFlatOne . dcCard . dCall $ play
   | otherwise             = illegalCallColumn
 
 receiverColumn :: Play -> CardColumn
-receiverColumn (Play (Pass Flat _ _ wr) StopPass _) = wrFlatPassCorrect wr
-receiverColumn (Play (Pass Flat _ _ wr) StopRun _)  = wrFlatPassCorrect wr
+receiverColumn = wrFlatPassCorrect . playReceiver
 
 -- Main lookup resolution function will recurse when redirect to other columns
 cardResult :: CardResult -> Play -> DieRolls -> PlayResult

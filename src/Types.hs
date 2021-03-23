@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module Types where
 
 -- Extra tight integer synonyms
@@ -10,6 +12,8 @@ type ZoneCount     = Int
 type ZoneDefenders = [DefRating]
 type TestRange     = [TestRoll]
 type FumbleRange   = [TestRoll]
+type TeamCity      = String
+type TeamYear      = String
 --
 -- Yardage results are sometimes specified, sometimes randomized
 --
@@ -68,9 +72,14 @@ data ReceiverCard = ReceiverCard { wrFlatPassCorrect :: CardColumn}
 
 data PasserCard   = PasserCard   { qbFlatPassCorrect :: CardColumn}
 
-data DefenseCard  = DefenseCard { defFlatZero :: CardColumn
+data DefenseCard  = DefenseCard { defTeamCity :: TeamCity
+                                , defTeamYear :: TeamYear
+                                , defFlatZero :: CardColumn
                                 , defFlatOne  :: CardColumn
                                 }
+
+instance Show DefenseCard where
+   show card = show $ (defTeamCity card) ++ " " ++ (defTeamYear card)
 
 data OffenseCard  = OffenseCard { offFumbleRange :: FumbleRange }
 --
@@ -98,21 +107,37 @@ data Side = OffensiveRight
           | OffensiveLeft
   deriving Show
 
-data PlayCall =
-  Pass Zone Side PasserCard ReceiverCard
+data OffensiveCall =
+  Pass { ocZone :: Zone
+       , ocSide :: Side
+       , ocQb   :: PasserCard
+       , ocWr   :: ReceiverCard
+       }
 
-data DefensiveCall =
+data DefensiveFocus =
     StopPass
   | StopRun
   deriving Show
 
+data GuessResult = GuessedRight | GuessedWrong
+
+data DefensiveCall = DefensiveCall { dcFocus     :: DefensiveFocus
+                                   , dcCard      :: DefenseCard
+                                   , dcAlignment :: DefensiveAlignment
+                                   }
+                     deriving Show
+
 data DefensiveAlignment = DefensiveAlignment { flatLeftZone  :: ZoneDefenders
                                              , flatRightZone :: ZoneDefenders
                                              }
+                          deriving Show
 
-data Play = Play { pCall :: PlayCall
+--
+-- The Play is what the coaches have asked for
+--
+data Play = Play { oCall :: OffensiveCall
                  , dCall :: DefensiveCall
-                 , dAlignment :: DefensiveAlignment
+                 , guess :: GuessResult
                  }
 
 --

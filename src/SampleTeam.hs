@@ -2,13 +2,11 @@ module SampleTeam where
 
 import Types
 
+sampleOffenseCard :: OffenseCard
+sampleOffenseCard = OffenseCard { offFumbleRange = [1,2] }
 
-
-sampleTeamOffenseCard :: OffenseCard
-sampleTeamOffenseCard = OffenseCard { offFumbleRange = [1,2] }
-
-sampleTeamDefenseCard :: DefenseCard
-sampleTeamDefenseCard = DefenseCard sampleFlat0 sampleFlat1
+sampleDefenseCard :: DefenseCard
+sampleDefenseCard = DefenseCard "Atlanta" "2002" sampleFlat0 sampleFlat1
 
 samplePasserCard :: PasserCard
 samplePasserCard = PasserCard samplePassColumn
